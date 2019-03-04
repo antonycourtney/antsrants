@@ -38,11 +38,12 @@ function Bio() {
               }}
             />
             <p>
-              Written by <strong>{author}</strong> who lives and works in San
-              Francisco building useful things.
-              {` `}
+              <a href={`https://www.antonycourtney.com`}>{author}</a>
+              {`'s nerdy
+              tech blog, mostly about various aspects of programming and software development.`}
+              <br />
               <a href={`https://twitter.com/${social.twitter}`}>
-                You should follow him on Twitter
+                Follow me on Twitter
               </a>
             </p>
           </div>
