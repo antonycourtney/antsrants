@@ -1,6 +1,7 @@
 ---
 title: OneRef - Simple Functional State Management for React
 date: "2019-03-03T22:12:03.284Z"
+description: A detailed description of the OneRef state management library
 ---
 
 <strong>UNPUBLISHED DRAFT</strong>: This is an unpublished draft. If you are reading this, it is hopefully because I invited you to review this. <strong>Please do not share the link to
