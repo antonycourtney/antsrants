@@ -42,8 +42,6 @@ Any and all mistakes, terrible ideas, conclusions, opinions or recommendations i
 
 ## The OneRef Architecture
 
-(Include tl;dr for those famililiar with Redux)
-
 The OneRef architecture looks roughly like this:
 
 ![OneRef Architecture](./oneref-architecture.png)
@@ -60,15 +58,16 @@ type StateRef<T> = ...; // Abstract type
 function update<T>(ref: StateRef<T>, tf: StateTransformer<T>) { ... }
 ```
 
-This results in notifying listeners, including the top level View, which renders the updated AppState. Immutable.js ensures that constructing the new AppState is efficient by optimizing sharing and re-use with the existing AppState, while React's Virtual DOM ensures the efficiency of rendering this updated AppState. 
-The other components of the architecture are as follows:
-An updater (sometimes called a refUpdater) is a helper function that updates the application state by setting the top level ref cell. 
-The React Views are ordinary React views. A high level View component accepts the AppState and a refUpdater as properties and passes these along to child components via properties as needed. 
-The Actions in OneRef are ordinary JavaScript functions called by event handlers in view components. They typically live in a source file outside of the React views and take whatever parameters are needed to perform the action plus an additional refUpdater parameter to enable the action to update the application state.
+The `update` function in OneRef behaves exactly like the [functional update](https://reactjs.org/docs/hooks-reference.html#functional-updates) variant of [useState](https://reactjs.org/docs/hooks-reference.html#usestate) in React Hooks. The only slight difference is the `ref` parameter
+that is passed down through React views and into event handler callbacks. This similarity is no
+accident; The `update` operation is implemented internally with `setState` of a top-level
+`useState` hook.
+
+The Actions in OneRef are ordinary JavaScript functions called by event handlers in view components. They typically live in a source file outside of the React views, take whatever parameters are needed to perform the action, and calculate a (pure) `StateTransformer` function to be passed to `update` to update the application state.
 
 ## TodoMVC in OneRef
 
-## Hello, Async
+## Hello, Async!
 
 ## Composition and Reuse
 
