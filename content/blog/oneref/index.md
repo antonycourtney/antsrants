@@ -37,7 +37,7 @@ development as part of my job.
 The work reported here
 was done entirely on my own time as part of
 maintaining [Tabli](https://chrome.google.com/webstore/detail/tabli/igeehkedfibbnhbfponhjjplpkeomghi) and [Tad](https://www.tadviewer.com), my hobby side projects.
-Any and all mistakes, terrible ideas, conclusions, opinions or recommendations included here are entirely my own, not those of my employer or any other teams.
+Any and all mistakes, terrible ideas, conclusions, opinions or recommendations included here are entirely my own, not those of Facebook or any Facebook teams.
 
 ---
 
@@ -48,34 +48,36 @@ The OneRef architecture looks roughly like this:
 ![OneRef Architecture](./oneref-architecture.png)
 
 The application state (`AppState`) is represented as a purely functional (immutable) data structure.
-I use [Immutable.JS](https://immutable-js.github.io/immutable-js/) for this purpose, but this is not a strict requirement. At the top level of a OneRef application, there is a single mutable ref cell
+I use [Immutable.JS](https://immutable-js.github.io/immutable-js/) for this purpose, but this is not a strict requirement; any immutable data structure representation should do.
+At the top level of a OneRef application, there is a single mutable ref cell
 (StateRef) that holds the current application state.
 
-Application state is updated in OneRef by calculating a new AppState from the existing AppState and setting the top level Ref to this new AppState. OneRef provides a single entry point, `update`, for this purpose:
+Application state is updated in OneRef by calculating a new AppState from the existing AppState and setting the top level StateRef to this new AppState. OneRef provides a single entry point, `update`, for this purpose:
 
 ```typescript
 type StateTransformer<T> = (s: T) => T;
-type StateRef<T> = ...; // Abstract type
+type StateRef<T> = ...; // opaque
 function update<T>(ref: StateRef<T>, tf: StateTransformer<T>) { ... }
 ```
 
 The `update` function in OneRef behaves exactly like the [functional update](https://reactjs.org/docs/hooks-reference.html#functional-updates) variant of [useState](https://reactjs.org/docs/hooks-reference.html#usestate) in React Hooks. The only slight difference is the `ref` parameter
 that is passed down through React views and into event handler callbacks. This similarity is no
-accident; The `update` operation is implemented internally with `setState` of a top-level
-`useState` hook.
+accident; The `update` operation is implemented internally in OneRef using `setState` from
+a top level `useState` hook.
 
-The Actions in OneRef are ordinary JavaScript functions called by event handlers in view components. They typically live in a source file outside of the React views, take whatever parameters are needed to perform the action, and calculate a (pure) `StateTransformer` function to be passed to `update` to update the application state.
+The Actions in OneRef are ordinary JavaScript functions called by event handlers in view components. They typically live in a source file outside of the React views, take whatever parameters are needed to perform the action, and calculate a (pure) `StateTransformer` function passed to `update` to update the
+application state.
 
 ## TodoMVC in OneRef
 
 ## Hello, Async!
 
-## Composition and Reuse
+## Composition
 
 ## Initialization Effects and Asynchronous Subscriptions
 
 ## Other concerns
 
-### Testing
+#### Testing
 
-### Performance
+#### Performance
