@@ -18,16 +18,19 @@ The goal of OneRef is to present a programming interface for state management th
 simple as possible while still providing
 sufficient expressive power to support real-world use cases such as interaction of application state with asynchronous platform APIs.
 
-I originally developed in OneRef in 2015 for use in my first production React application
-([Tabli](https://chrome.google.com/webstore/detail/tabli/igeehkedfibbnhbfponhjjplpkeomghi), a tab manager extension for Google Chrome), and later used it in [Tad](https://www.tadviewer.com), a desktop application for viewing and analyzing CSV files. By the time I completed the initial version of OneRef,
-[Redux](https://redux.js.org/) had gained considerable traction and established itself as a de facto
+I originally developed OneRef in 2015 as a simpler alternative to the [Flux architecture](https://facebook.github.io/flux/docs/overview.html). I used it in my first production React application
+([Tabli](https://chrome.google.com/webstore/detail/tabli/igeehkedfibbnhbfponhjjplpkeomghi), a tab manager extension for Google Chrome), and later used it in [Tad](https://www.tadviewer.com), a desktop application for viewing and analyzing CSV files.
+By the time I completed the initial version of OneRef,
+[Redux](https://redux.js.org/) had gained considerable traction and established itself as the de facto
 standard for React state management. At the time I decided that Redux was sufficiently similar to OneRef that OneRef wasn't worth publicizing widely.
 
 I recently rewrote OneRef for use with TypeScript and React Hooks. As part of this process, I struggled with a problem that still seems to present a significant challenge when using state management libraries: How to cleanly support application actions that need to interleave asynchronous platform operations with reading and updating application state. In the Redux ecosystem this problem is
 addressed by middleware libraries such as [redux-thunk](https://github.com/reduxjs/redux-thunk) and [redux-saga](https://redux-saga.js.org/). For this latest iteration of
 OneRef, I came up with an additional OneRef primitive, **awaitableUpdate**. This operation
-seems to cleanly address this challenge of handling asynchronous operations, but could be controversial.
-I'm writing this blog post mainly to present awaitableUpdate and solicit feedback from the React community.
+seems to cleanly address the challenge of integration application state with
+asynchronous operations, but the interface and implementation could be controversial.
+I'm writing this blog post mainly to present **awaitableUpdate** and solicit feedback
+from the React community.
 
 ---
 
@@ -43,9 +46,9 @@ Any and all mistakes, terrible ideas, conclusions, opinions or recommendations i
 
 ---
 
-## The OneRef Architecture
+## Overview
 
-This section presents an overview of OneRef. Readers already familiar with Redux can lightly skim this section and the next one, and resume reading at [Differences from Redux](#differences-from-redux).
+This section presents an overview of OneRef. Readers already familiar with Redux can lightly skim this section and the next one, and resume reading at [Comparison with Redux](#comparison-with-redux).
 
 The OneRef architecture looks roughly like this:
 
@@ -265,9 +268,64 @@ const TodoApp = oneref.appContainer<TodoAppState>(
 ReactDOM.render(<TodoApp />, document.getElementsByClassName('todoapp')[0]);
 ```
 
-### Differences from Redux
+### Comparison with Redux
 
-For those familiar with Redux, the biggest difference ..
+For those familiar with Redux, the similarities and differences from Redux should be apparent from
+the previous example. Redux and OneRef are both based on immutable application state that remains
+frozen throghout each render cycle. Both Redux and OneRef update the application state centrally by
+evaluating an application-supplied function that calculates a new state from an old state (a **reducer** in
+Redux, a **StateTransformer** in OneRef). Both Redux and OneRef inject a capability into the component top-level component that is passed down the component hierarchy; this capability enables
+event handlers to schedule (functional) updates to the application state in response to external events,
+whether from the DOM or other sources.
+
+The main difference between OneRef and Redux is that Redux uses explicit action objects to communicate
+between actions (callbacks) and the store. It is relatively straightforward to port a
+OneRef application to Redux:
+
+- Define a constant value for action type for each of the action functions ( in this example: `'CREATE'`, `'CLEAR_COMPLETED'`, `'UPDATE_TEXT'`, etc.)
+- Modify each action function to create and return an action object of the appropriate type, with extra fields for any free variables appearing in the `state => state` function returned by the OneRef action implementation.
+- Write a single _reducer_ function for the application that accepts an action object, switches on the action type, and has a `case` clause for of each of the `state => state` functions returned by the actions in the OneRef version.
+
+For the TodoMVC example, this action from the OneRef implementation:
+
+```typescript
+export const create = (text: string): StateTransformer<TodoAppState> => state =>
+  state.addItem(new TodoItem(text));
+```
+
+in a Redux implementation would become:
+
+```typescript
+export const create = (text: string): TodoAction => ({ type: 'CREATE', text });
+```
+
+with an application-wide reducer function:
+
+```typescript
+export const todoReducer = (state: TodoAppState, action: TodoAction): TodoAppState => {
+    switch (action.type) {
+        case 'CREATE':
+            return state.addItem(new TodoItem(action.text));
+        ... // cases for all other message types here
+    }
+}
+```
+
+(Details of type definitions for `TodoAction` omitted)
+
+In the absence of extensions it is also straightforward to translate in the other direction and migrate a Redux application to OneRef, so OneRef and Redux seem roughly equivalent in expressive power.
+I'm also not particularly concerned about performance differences between the systems
+(though I'll mention some questions on this point a bit later).
+
+The tradeoff between OneRef and Redux seems to come down to this: OneRef eliminates the
+need to define, create and switch on explicit actions objects. In a sense, the pure
+state transfomer functions returned from action functions in OneRef serve to both identify the
+type of action to perform and also provide the exact recipe for how to calculate the new state from
+the current state. This is arguably a simpler, more direct programming model.
+However, the extra indirection of Redux's explicit action objects do provide
+some benefits: They enable clear and useful logging, naturally support record and replay
+style testing, and enable middleware extensions that can be interposed between construction
+of an action message and applying this to the store to provide additional services.
 
 ## Hello, Async!
 
