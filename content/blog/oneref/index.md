@@ -334,10 +334,8 @@ translate a Redux application to OneRef. So, OneRef and Redux seem roughly equiv
 
 The difference between OneRef and Redux, then, comes down to this: OneRef eliminates the
 need to define, name, create and switch on explicit action objects. Instead, in OneRef, action functions
-return anonymous state transformer functions that specify how to calculate the new state from
-the current state in the form a of a State Transformer. Where Redux has both action creator functions
-and a set of string constants to identify action types, OneRef only has action creators bound to ordinary
-JavaScript variables. This is arguably a simpler, more direct programming model.
+define anonymous state transformer functions that specify how to calculate the new state from
+the current state. This is arguably a simpler, more direct programming model.
 
 However, the extra indirection of Redux's explicit action objects do provide
 significant benefits: They enable clear and useful logging, they naturally support record and replay
@@ -347,13 +345,16 @@ of an action message and applying this to the store to provide additional servic
 
 The choice between OneRef and Redux for a given application, then, comes down to a combination of
 
-- Subjective aesthetics: I happen to like the style of writing anonymous pure state transformers in exactly the same place as the corresponding action creator with no additional overhead, but there is also value in the Redux approach of having all state transformation concentrated in a single reducer.
+- Subjective aesthetics: I happen to like the style of writing all code related to an action, including state
+  transformers, in one place (the action function), with no additional overhead.
+  However, reasonable people can disagree: In Redux, all state transformation
+  is concentrated in a single reducer function, which provides a useful central point to watch when debugging.
 - Whether the application needs the additional functionality enabled by Redux's explicit action objects.
 
-Aside from these technical considerations, other practical social considerations weigh heavily in favor
-of Redux: Redux is mature, well maintained and well documented, and has a thriving developer community. I'm writing this
-post to describe a technical setup that worked well for my own applications, not trying to sell you anything.
-While you are welcome to try OneRef, it is currently just my own experimental side project.
+Aside from these technical considerations, practical social considerations weigh heavily in favor
+of Redux: Redux is mature, well maintained, well tested, well documented, and has a thriving developer community. I'm writing this
+post to describe the underlying ideas in a technical setup that has worked well for my own applications.
+While you are welcome to try OneRef, it is currently just an experimental library I have used in minor side projects.
 
 ## Asynchronous Operations
 
@@ -569,12 +570,12 @@ export async function showNotificationWithTimeout(
 }
 ```
 
-This differs from previous actions we've seen previously in two important ways: First, **stateRef** is passed in directly to the action, instead of the action returning a **StateTransformer** that the caller passes to **update**.
+This differs from previous actions we've seen in two important ways: First, **stateRef** is passed in directly to the action, instead of the action returning a **StateTransformer** that the caller passes to **update**.
 Second, this is an **async** function. Since it's called from a non-async function (the **onClick** callback),
 **showNotificationWithTimout** is effectively a co-routine that executes independently alongside the rest of the
 application.
 
-The most interesting part of this action is the call to **awaitableUpdate**. AwaitableUpdate is a new primitive
+The most interesting part of this action is the call to **awaitableUpdate**, a new primitive
 added to OneRef that has the following signature:
 
 ```typescript
@@ -594,7 +595,7 @@ the application state (using the first component of the pair returned by **tf**)
 a promise, making the [State, Auxiliary Value] pair available to **awaitableUpdate**'s caller.
 
 At first it seems a bit odd to provide an awaitable version of **update** -- why should the application await on its
-own state updates? But the React programming requires that **update** (and its React ancestor, **setState**) is an asynchronous operation -- the update can not be applied synchronously to the current state since state must remain
+own state updates? But the React programming model requires that **update** (and its React ancestor, **setState**) is an asynchronous operation -- the update can not be applied synchronously to the current state since state must remain
 frozen until the current render cycle completes. The addition of **awaitableUpdate** solves an important practical problem: It enables an async block to resume _after_ an update has been applied, and see fresh data derived from the application state as of the time of the update.
 
 This enables writing complex application action sequences with linear control flow in the style of redux-saga (a source of inspiration for this work), using async functions instead of generator functions.
@@ -604,9 +605,103 @@ power to cover many essential use cases in real applications.
 
 ### mutableGet
 
+In using this latest version of **OneRef** to port [Tabli](https://chrome.google.com/webstore/detail/tabli/igeehkedfibbnhbfponhjjplpkeomghi) (a Chrome extension for tab management) to TypeScript and Hooks, I observed
+that, in many cases, action functions invoked as callbacks needed read access to the current application
+state at the time the callback was invoked (as opposed to the time the callback was created),
+without necessarilly needing to perform an update to the state.
+
+A good example of this is the behavior of Tabli's popout button:
+
+![Tabli screenshot](./tabli-popup.png)
+
+The intended behavior of the popout button is that it should open the Tabli popout window only if it is not currently open. If it is already open, the popout button should transfer focus to the (already open) popout window instead of opening a new one.
+
+Tabli maintains a detailed snapshot of all open windows as part of its application state, including the current
+popout window. The implementation of the **showPopout** action in Tabli is:
+
+```typescript
+export const showPopout = (stateRef: StateRef<TabManagerState>) => {
+  const ptw = mutableGet(stateRef).getPopoutTabWindow();
+  if (ptw) {
+    tabliBrowser.setFocusedWindow(ptw.openWindowId);
+  } else {
+    chromep.windows.create({
+      url: 'popout.html',
+      type: 'popup',
+      left: 0,
+      top: 0,
+      width: Constants.POPOUT_DEFAULT_WIDTH,
+      height: Constants.POPOUT_DEFAULT_HEIGHT,
+    });
+  }
+};
+```
+
+This action makes use of **mutableGet**, another OneRef primitive API function with the following signature:
+
+```typescript
+export function mutableGet<T>(ref: StateRef<T>): T;
+```
+
+The behavior of **mutableGet** is what one would intuitively expect: it (synchronously) returns the
+current state value referenced by a **stateRef**. The verbose name of this function is intended as
+something of a warning label to indicate that repeated calls to mutableGet on the same **stateRef**
+at different points in the execution of the program may return different values. While it is
+reasonable to call **mutableGet** within the (imperative) body of an action function in response to
+an event, one should never call **mutableGet** directly in the body of a React functional component or **render()** method, since these should ideally be pure functions of their props that can be memoized with **React.memo**.
+
 ### Andre Staltz's Flux Challenge
 
+A final example of the interaction of application state with asynchronous requests comes from the [Flux Challenge](https://github.com/staltz/flux-challenge) by Andre Staltz. The Flux Challenge is another example application for a
+real-time dashboard user interface for monitoring the movement of Jedi and Sith in the Star Wars Universe:
+
+![Flux Challenge screenshot](./flux-challenge.gif)
+
+The application involves both subscribing to a web socket and issuing http fetch requests in response to user
+actions to populate the dashboard. The requirements for the challenge are quite intricate, but express the
+sorts of messy, complex requirements of real applications and asynchronous platform APIs. For example,
+the requirements stipulate:
+
+> When either the current planet indicator changes OR loaded new rows: check if there is a displayed Dark
+> Jedi whose home planet matches the current planet. If true, then display that Dark Jedi in red text,
+> and cancel ALL ongoing HTTP requests for rows. Freeze the UI from scrolling until the current planet
+> changes again and there is no red-highlighted Dark Jedi anymore.
+
+The OneRef implementation of the Flux Challenge can also be found in the [OneRef examples respository](https://github.com/antonycourtney/oneref-examples/tree/master/flux-challenge). Unfortunately this example also requires running
+a separate WebSocket server (provided in the [original flux challenge repository](<(https://github.com/staltz/flux-challenge)>)), so I can't provide a live version in
+a CodeSandbox.
+
+This post is far too long already, so I'll forego a complete walk-through of this example. But **awaitableUpdate**
+enabled a fairly concise implementation of this example in OneRef.
+For example, here is the implementation of
+the async action invoked in response to updates to Obi-Wan's position from the WebSocket subscription, to implement
+the behavior described in the above requirement:
+
+```typescript
+const updateObiWan = async (
+  parsedLocation: any,
+  stateRef: StateRef<DashboardAppState>
+) => {
+  const [nextSt, oldRequests] = await awaitableUpdate(stateRef, state => {
+    const obiWanLocation = new DT.PlanetInfo(parsedLocation);
+    const locState = state.set('obiWanLocation', obiWanLocation);
+    return locState.checkMatchingSith();
+  });
+  cancelOldRequests(oldRequests);
+  if (!nextSt.matchingSith()) {
+    fillView(nextSt, stateRef);
+  }
+};
+```
+
 ## Composition
+
+Another concern with state management libraries is _composition_ or _modularity_. All of the examples thus far show a single top-level application state that runs through the entire application. What happens when we want to combine
+multiple mega components developed with OneRef and compose them into a larger application?
+
+As an example, consider building a "Multi-TodoList" application that provides distinct Todo lists for work and
+personal entries, each composed of the fully functioning TodoMVC list editor from the beginning of this post.
+A working version of this would look something like this:
 
 ## Other concerns
 
