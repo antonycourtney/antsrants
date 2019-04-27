@@ -477,11 +477,11 @@ StackOverflow question](https://stackoverflow.com/questions/35411423/how-to-disp
 [Tyler Long](https://stackoverflow.com/users/862862/tyler-long) was kind enough to distill this question down to
 a concise runnable example made with create-react-app and create a [Github repository](https://github.com/tylerlong/hello-async) with runnable versions of the various Redux solutions.
 
-The hello-async example, when running, looks like this:
+The OneRef implementation of the hello-async example, when running, looks like this:
 
 ![hello-async example screenshot](./hello-async.gif)
 
-Each of the buttons adds a label to the UI that is displayed for a fixed timeout period. After the timeout period, the label is hidden. A runnable version of the OneRef implementation of this example is available [on Codesandbox](https://codesandbox.io/s/github/antonycourtney/oneref-examples/tree/master/hello-async) and in [the oneref-examples repository](https://github.com/antonycourtney/oneref-examples/tree/master/hello-async).
+Each of the buttons adds a label to the UI that is displayed for a fixed timeout period. After the timeout period, the label is hidden. A runnable version of this example is available [on Codesandbox](https://codesandbox.io/s/github/antonycourtney/oneref-examples/tree/master/hello-async) and in [the oneref-examples repository](https://github.com/antonycourtney/oneref-examples/tree/master/hello-async).
 
 As before, the application state is represented with an Immutable.JS Record:
 
@@ -590,18 +590,18 @@ export async function awaitableUpdate<T, A>(
 A **StateTransformerAux** is a similar to a **StateTransformer**, but also returns an extra auxiliary value along
 with the next state. In **showNotificationWithTimeout**, the call to **HelloAppState.show** returns a pair of the next application state and the id
 of the newly created notification added to the application state. **awaitableUpdate** is an async function that,
-like **update** schedules an update of the application state referenced by **stateRef**. However, after updating
+like **update**, schedules an update of the application state referenced by **stateRef**. However, after updating
 the application state (using the first component of the pair returned by **tf**), **awaitableUpdate** resolves
-a promise, making the [State, Auxiliary Value] pair available to **awaitableUpdate**'s caller.
+the promise returned from **awaitableUpdate**, making the [State, Auxiliary Value] pair available to **awaitableUpdate**'s caller.
 
 At first it seems a bit odd to provide an awaitable version of **update** -- why should the application await on its
 own state updates? But the React programming model requires that **update** (and its React ancestor, **setState**) is an asynchronous operation -- the update can not be applied synchronously to the current state since state must remain
 frozen until the current render cycle completes. The addition of **awaitableUpdate** solves an important practical problem: It enables an async block to resume _after_ an update has been applied, and see fresh data derived from the application state as of the time of the update.
 
 This enables writing complex application action sequences with linear control flow in the style of redux-saga (a source of inspiration for this work), using async functions instead of generator functions.
-Generator functions and redux-saga's generalized algebraic effects are extremely powerful, so I don't expect or claim that OneRef with awaitableUpdate subsumes everything that can be expressed with redux-saga. My hope (which will have to
-wait until more experience accumulates) is that the addition of **awaitableUpdate** offers sufficient expressive
-power to cover many essential use cases in real applications.
+Generator functions and redux-saga's generalized algebraic effects are extremely powerful, so I don't expect or claim that OneRef with awaitableUpdate subsumes everything that can be expressed with redux-saga. The hope is that the
+addition of **awaitableUpdate** offers sufficient expressive power to cover many essential use cases in real
+applications; that's been my experience thus far on the examples I have tried.
 
 ### mutableGet
 
@@ -696,12 +696,20 @@ const updateObiWan = async (
 
 ## Composition
 
-Another concern with state management libraries is _composition_ or _modularity_. All of the examples thus far show a single top-level application state that runs through the entire application. What happens when we want to combine
-multiple mega components developed with OneRef and compose them into a larger application?
+Another concern with state management libraries is _composition_: How can we take applications developed with OneRef and compose them into larger applications?
 
-As an example, consider building a "Multi-TodoList" application that provides distinct Todo lists for work and
-personal entries, each composed of the fully functioning TodoMVC list editor from the beginning of this post.
+As an example, consider building a "Multi-TodoList" application that provides distinct Todo lists for work and personal entries, each composed of an independent, fully functioning version of the Todo list editor from the beginning of this post.
 A working version of this would look something like this:
+
+![MultiTodo screenshot](./multitodo.png)
+
+(Regrettably, the "Work" and "Personal" labels in header really are overlapping, an unfortunate bug due to
+the CSS from the 'todomvc-app-css' package [using absolute positioning for this element](https://github.com/tastejs/todomvc-app-css/blob/master/index.css#L71).
+Since a fix is non-trivial (other elements depend on this absolute positioning),
+CSS best practices aren't the point of this post, my CSS skills are
+terrible, and everything else about this example seems to work correctly,
+I'm leaving this as-is. But if it really bothers you and you're feeling generous with your time,
+I'd gladly welcome a Pull Request with a fix. )
 
 ## Other concerns
 
