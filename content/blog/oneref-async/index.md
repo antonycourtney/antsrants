@@ -64,7 +64,7 @@ const TodoApp = oneref.appContainer<TodoAppState>(
 ReactDOM.render(<TodoApp />, document.getElementsByClassName('todoapp')[0]);
 ```
 
-A more thorough introduction to OneRef is provided in [a companion post](../onref-intro)
+A more thorough introduction to OneRef is provided in [a companion post](../oneref-intro)
 to this one.
 
 ### Basic Asynchronous Subscriptions
