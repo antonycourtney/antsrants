@@ -1,6 +1,6 @@
 ---
 title: A Tutorial Introduction to OneRef
-date: '2019-05-05T22:12:03.284Z'
+date: '2019-05-11T22:12:03.284Z'
 description: A tutorial introduction to the OneRef state management library
 ---
 

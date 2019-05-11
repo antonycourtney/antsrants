@@ -1,6 +1,6 @@
 ---
 title: Asynchrony Support in OneRef
-date: '2019-05-05T23:12:03.284Z'
+date: '2019-05-11T23:12:03.284Z'
 description: Interleaving asynchronous platform operations with state updates in OneRef
 ---
 
