@@ -291,9 +291,9 @@ the CSS from the **todomvc-app-css** package [using absolute positioning](https:
 Since a fix is non-trivial (other elements depend on this absolute positioning),
 this isn't a post about CSS, my CSS skills are terrible, and everything else
 about this example seems to work, I'm leaving this as-is.
-But if it really bothers you, your CSS skills are better than mine (a low bar!)
+But if your CSS skills are better than mine (a low bar!)
 and you're feeling generous with your time, I'd gladly welcome a pull
-request with a fix.)
+request with a fix! 😊)
 
 To begin with, we'll define the MultiTodo application state as an Immutable.JS
 Record with two fields, **work** and **personal**, each of type **TodoAppState**,
@@ -395,7 +395,7 @@ application state definitions, React components, and actions from the original T
 For those familiar with Redux, the similarities and differences from Redux should be apparent from these examples:
 
 - Redux and OneRef are similar in that both are based on immutable application state that remains
-  frozen throghout each render cycle, both update the application state centrally by
+  frozen throughout each render cycle, both update the application state centrally by
   evaluating an application-supplied function that calculates a new state from an old state (a **reducer** in
   Redux, a **StateTransformer** in OneRef), and both inject a capability into the top-level component
   that is passed down the component hierarchy to enable

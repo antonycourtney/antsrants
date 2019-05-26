@@ -50,7 +50,30 @@ function update<T>(ref: StateRef<T>, tf: StateTransformer<T>) { ... }
 ```
 
 The **update** function in OneRef is similar to the [functional update](https://reactjs.org/docs/hooks-reference.html#functional-updates) variant of [useState](https://reactjs.org/docs/hooks-reference.html#usestate) in React Hooks. The only slight difference is the additional **ref** parameter
-that is passed down through React views and into event handler callbacks. At the top level, the application calls **appContainer**, which will create and inject
+that is passed down through React views and into event handler callbacks.
+
+Event handlers call OneRef's **update** function to update application state, passing in a **stateRef** that is passed down the component
+hierarchy via props. For example:
+
+```typescript
+const onSave = (text: string) => {
+  if (text.trim()) {
+    update(stateRef, actions.createTodo(text));
+  }
+};
+```
+
+**Actions** in OneRef are ordinary JavaScript functions that typically return a state transformer (a pure state to state function) that can be passed to **update**.
+For example:
+
+```typescript
+export const createTodo = (text: string): StateTransformer<TodoAppState> => {
+  const item = new TodoItem(text);
+  return state => state.addItem(item);
+};
+```
+
+At the top level, the application calls **appContainer**, which will create and inject
 the **StateRef** passed down the component hierarchy:
 
 ```typescript
@@ -69,8 +92,9 @@ to this one.
 
 ### Basic Asynchronous Subscriptions
 
-To begin with, let's consider a simple extension of the TodoMVC Example to support sharing a Todo list with
-several users. As before, the complete working
+To begin with, let's consider a simple extension of the TodoMVC Example (from the [introductory post](../oneref-intro))
+to support sharing a Todo list with
+several users. The complete working
 example is available [on CodeSandbox](https://codesandbox.io/s/github/antonycourtney/oneref-examples/tree/master/todo-async-basic)
 and in the [OneRef examples repository](https://github.com/antonycourtney/oneref-examples/tree/master/todo-async-basic).
 
@@ -132,17 +156,18 @@ component instance.
 
 ### Hello, Async!
 
-The previous subscription example demonstrates one simple but common use case: an asynchronous operation or event callback that updates application state asynchronously. That use case didn't require any new primitives; the application
-just calls **update** from the callback.
+The previous subscription example demonstrates one simple but common use case: an asynchronous operation or event callback that updates application state asynchronously. That example didn't require any new primitives; the application
+just calls **update** from the subscription callback.
 
-A challenge with micro-examples is that they sometimes don't capture all the nuances or use cases that crop up in
-real application development. In real applications, it's common for actions to need to perform sequences of asynchronous operations, where operations later in the sequence are invoked only after earlier operations complete. The syntax
+In real applications, it's common for actions to need to perform sequences of asynchronous operations, where operations later in the sequence are invoked only after earlier operations complete. The syntax
 for **async** blocks in ES6 support exactly such sequencing. And, as we have seen, there's no problem
-with interleaving calls to **update** in a sequence of async operations.
+with calling **update** from a callback context. It's equally fine to call **update** from within an **async** block.
 
-The challenge, though, is that **update** is a _write-only_ operation. It allows the application to arrange for an
-update to application state, but provides no mechanism for invoking asynchronous operations based on the current
-application state in the middle of an asynchronous block. This presents a significant challenge for classic
+The challenge, though, is that **update** is a _write-only_ operation, and does its work asynchronously --
+the update can not be applied synchronously to the current state since state must remain
+frozen until the current render cycle (or callback) completes. **update** allows the application to arrange for an
+update to application state, but provides no mechanism for invoking asynchronous operations based on the result
+of updating the state. This presents a significant challenge for classic
 Redux or OneRef as described thus far.
 
 The extent to which this is a challenging problem is reflected in the length and breadth of answers to [this
@@ -249,7 +274,7 @@ export async function showNotificationWithTimeout(
 
 This differs from previous actions we've seen in two important ways: First, **stateRef** is passed in directly to the action, instead of the action returning a **StateTransformer** that the caller passes to **update**.
 Second, this is an **async** function. Since it's called from a non-async function (the **onClick** callback),
-**showNotificationWithTimout** is effectively a co-routine that executes independently alongside the rest of the
+**showNotificationWithTimeout** is effectively a co-routine that executes independently alongside the rest of the
 application.
 
 The most interesting part of this action is the call to **awaitableUpdate**, a new primitive
@@ -272,8 +297,8 @@ the application state (using the first component of the pair returned by **tf**)
 the promise returned from **awaitableUpdate**, making the [State, Auxiliary Value] pair available to **awaitableUpdate**'s caller.
 
 At first it seems a bit odd to provide an awaitable version of **update** -- why should the application await on its
-own state updates? But the React programming model requires that **update** (and its React ancestor, **setState**) is an asynchronous operation -- the update can not be applied synchronously to the current state since state must remain
-frozen until the current render cycle completes. The addition of **awaitableUpdate** solves an important practical problem: It enables an async block to resume _after_ an update has been applied, and see fresh data derived from the application state as of the time of the update.
+own state updates? But recall that **update** _must_ do its work asynchronously to ensure that state is consistent throughout a given
+render cycle or chain of callbacks. The addition of **awaitableUpdate** solves an important practical problem: It enables an async block to resume _after_ an update has been applied and see fresh data derived from the updated application state.
 
 This enables writing complex application action sequences with linear control flow in the style of redux-saga (a source of inspiration for this work), using async functions instead of generator functions.
 Generator functions and redux-saga's generalized algebraic effects are extremely powerful, so I don't expect or claim that OneRef with awaitableUpdate subsumes everything that can be expressed with redux-saga. The hope is that the
@@ -285,7 +310,7 @@ applications; that's been my experience thus far on the examples I have tried.
 In using this latest version of **OneRef** to port [Tabli](https://chrome.google.com/webstore/detail/tabli/igeehkedfibbnhbfponhjjplpkeomghi) (a Chrome extension for tab management) to TypeScript and Hooks, I observed
 that, in many cases, action functions invoked as callbacks needed read access to the current application
 state at the time the callback was invoked (as opposed to the time the callback was created),
-without necessarilly needing to perform an update to the state.
+without necessarily needing to perform an update to the state.
 
 A good example of this is the behavior of Tabli's popout button:
 
@@ -344,7 +369,7 @@ the requirements stipulate:
 > and cancel ALL ongoing HTTP requests for rows. Freeze the UI from scrolling until the current planet
 > changes again and there is no red-highlighted Dark Jedi anymore.
 
-The OneRef implementation of the Flux Challenge can also be found in the [OneRef examples respository](https://github.com/antonycourtney/oneref-examples/tree/master/flux-challenge). Unfortunately this example also requires running
+The OneRef implementation of the Flux Challenge can also be found in the [OneRef examples repository](https://github.com/antonycourtney/oneref-examples/tree/master/flux-challenge). Unfortunately this example also requires running
 a separate WebSocket server (provided in the [original flux challenge repository](<(https://github.com/staltz/flux-challenge)>)), so I can't provide a live version in
 a CodeSandbox.
 
