@@ -1,11 +1,8 @@
 ---
 title: Asynchrony Support in OneRef
-date: '2019-05-11T23:12:03.284Z'
+date: '2019-05-26T23:12:03.284Z'
 description: Interleaving asynchronous platform operations with state updates in OneRef
 ---
-
-<strong>UNPUBLISHED DRAFT</strong>: This is an unpublished draft. If you are reading this, it is hopefully because I invited you to review this. <strong>Please do not share the link to
-this post with others or on social media yet.</strong> Thank You!
 
 ---
 
@@ -56,10 +53,16 @@ Event handlers call OneRef's **update** function to update application state, pa
 hierarchy via props. For example:
 
 ```typescript
-const onSave = (text: string) => {
-  if (text.trim()) {
-    update(stateRef, actions.createTodo(text));
-  }
+import { StateRef, update } from 'oneref';
+// ...
+// functional React component:
+const Header = ({ stateRef }: HeaderProps) => {
+  const onSave = (text: string) => {
+    if (text.trim()) {
+      update(stateRef, actions.createTodo(text));
+    }
+  };
+  // ...
 };
 ```
 
@@ -87,7 +90,7 @@ const TodoApp = oneref.appContainer<TodoAppState>(
 ReactDOM.render(<TodoApp />, document.getElementsByClassName('todoapp')[0]);
 ```
 
-A more thorough introduction to OneRef is provided in [a companion post](../oneref-intro)
+A more thorough introduction to OneRef, including this complete example, is provided in [a companion post](../oneref-intro)
 to this one.
 
 ### Basic Asynchronous Subscriptions
@@ -143,8 +146,8 @@ const TodoApp = appContainer<TodoAppState, {}>(
 ReactDOM.render(<TodoApp />, document.getElementsByClassName('todoapp')[0]);
 ```
 
-As before, we are calling **appContainer** to create the top-level React application component. This time, however, we are passing an extra **init** argument, of type **AppStateEffect&lt;TodoAppState&gt;**. This is a function that will be
-called to perform any initialization side effects, in this case setting up the subscription handling.
+As with [the basic version of this example](../oneref-intro/#todomvc-in-oneref), we call **appContainer** to create the top-level React application component. This time, however, we are passing an extra **init** argument, of type **AppStateEffect&lt;TodoAppState&gt;**. This is a function that will be
+called to perform any initialization side effects, in this case setting up the subscription.
 
 The body of **init** sets up the subscription, calling **actions.createTodo**
 for every **entry** value provided by the subscription. Recall that
@@ -161,13 +164,13 @@ just calls **update** from the subscription callback.
 
 In real applications, it's common for actions to need to perform sequences of asynchronous operations, where operations later in the sequence are invoked only after earlier operations complete. The syntax
 for **async** blocks in ES6 support exactly such sequencing. And, as we have seen, there's no problem
-with calling **update** from a callback context. It's equally fine to call **update** from within an **async** block.
+with calling **update** from a callback context, including async blocks.
 
 The challenge, though, is that **update** is a _write-only_ operation, and does its work asynchronously --
 the update can not be applied synchronously to the current state since state must remain
-frozen until the current render cycle (or callback) completes. **update** allows the application to arrange for an
+frozen throughout the current render cycle or callback. **update** allows the application to arrange for an
 update to application state, but provides no mechanism for invoking asynchronous operations based on the result
-of updating the state. This presents a significant challenge for classic
+of applying the update. This presents a significant challenge for classic
 Redux or OneRef as described thus far.
 
 The extent to which this is a challenging problem is reflected in the length and breadth of answers to [this
@@ -290,15 +293,18 @@ export async function awaitableUpdate<T, A>(
 ```
 
 A **StateTransformerAux** is a similar to a **StateTransformer**, but also returns an extra auxiliary value along
-with the next state. In **showNotificationWithTimeout**, the call to **HelloAppState.show** returns a pair of the next application state and the id
-of the newly created notification added to the application state. **awaitableUpdate** is an async function that,
+with the next state.
+**awaitableUpdate** is an async function that,
 like **update**, schedules an update of the application state referenced by **stateRef**. However, after updating
 the application state (using the first component of the pair returned by **tf**), **awaitableUpdate** resolves
 the promise returned from **awaitableUpdate**, making the [State, Auxiliary Value] pair available to **awaitableUpdate**'s caller.
+In **showNotificationWithTimeout**, the call to **HelloAppState.show** returns a pair of the next application state and the id
+of the newly created notification added to the application state. The call to **awaitableUpdate** in **showNotificationWithTimeout**
+binds this auxiliary value to the local variable **id** after the update has been applied and allows execution of the async block to proceed.
 
 At first it seems a bit odd to provide an awaitable version of **update** -- why should the application await on its
 own state updates? But recall that **update** _must_ do its work asynchronously to ensure that state is consistent throughout a given
-render cycle or chain of callbacks. The addition of **awaitableUpdate** solves an important practical problem: It enables an async block to resume _after_ an update has been applied and see fresh data derived from the updated application state.
+render cycle or callback. The addition of **awaitableUpdate** solves an important practical problem: It enables an async block to resume _after_ an update has been applied and see fresh data derived from the updated application state.
 
 This enables writing complex application action sequences with linear control flow in the style of redux-saga (a source of inspiration for this work), using async functions instead of generator functions.
 Generator functions and redux-saga's generalized algebraic effects are extremely powerful, so I don't expect or claim that OneRef with awaitableUpdate subsumes everything that can be expressed with redux-saga. The hope is that the
@@ -308,8 +314,8 @@ applications; that's been my experience thus far on the examples I have tried.
 ### mutableGet
 
 In using this latest version of **OneRef** to port [Tabli](https://chrome.google.com/webstore/detail/tabli/igeehkedfibbnhbfponhjjplpkeomghi) (a Chrome extension for tab management) to TypeScript and Hooks, I observed
-that, in many cases, action functions invoked as callbacks needed read access to the current application
-state at the time the callback was invoked (as opposed to the time the callback was created),
+that, in many cases, action functions invoked as callbacks needed read access to the application
+state at the time the callback is invoked (as opposed to the time the callback was created),
 without necessarily needing to perform an update to the state.
 
 A good example of this is the behavior of Tabli's popout button:
@@ -350,7 +356,8 @@ current state value referenced by a **stateRef**. The verbose name of this funct
 something of a warning label to indicate that repeated calls to mutableGet on the same **stateRef**
 at different points in the execution of the program may return different values. While it is
 reasonable to call **mutableGet** within the (imperative) body of an action function in response to
-an event, one should never call **mutableGet** directly in the body of a React functional component or **render()** method, since these should ideally be pure functions of their props that can be memoized with **React.memo**.
+an event, one should never call **mutableGet** directly in the body of a React functional component or **render()** method,
+since these should ideally be pure functions of their props that can be memoized with **React.memo**.
 
 ### Andre Staltz's Flux Challenge
 

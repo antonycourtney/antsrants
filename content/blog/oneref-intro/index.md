@@ -1,11 +1,8 @@
 ---
 title: A Tutorial Introduction to OneRef
-date: '2019-05-11T22:12:03.284Z'
+date: '2019-05-26T22:12:03.284Z'
 description: A tutorial introduction to the OneRef state management library
 ---
-
-<strong>UNPUBLISHED DRAFT</strong>: This is an unpublished draft. If you are reading this, it is hopefully because I invited you to review this. <strong>Please do not share the link to
-this post with others or on social media yet.</strong> Thank You!
 
 ---
 
